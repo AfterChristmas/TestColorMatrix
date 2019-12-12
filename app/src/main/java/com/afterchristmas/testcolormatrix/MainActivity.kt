@@ -6,8 +6,7 @@ import android.view.View
 import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import android.graphics.Bitmap
-
-
+import java.lang.Math.*
 
 
 class MainActivity : AppCompatActivity() {
@@ -31,7 +30,17 @@ class MainActivity : AppCompatActivity() {
         val bmp = BitmapFactory.decodeResource(resources,
                 R.drawable.test9)
 //                image2!!.setImageBitmap(threshedBitmap(bmp));
-                image2!!.setImageBitmap(convertToBlackWhite(bmp));
+//        image2!!.setImageBitmap(convertToBlackWhite(bmp));
+                image2!!.setImageBitmap(sauva(threshedBitmap(bmp),30));
+
+       /* Thread{
+            kotlin.run {
+                val bitmap2 = sauva(threshedBitmap(bmp),30)
+                runOnUiThread {
+                    image2!!.setImageBitmap(bitmap2);
+                }
+            }
+        }.start()*/
 //                image2!!.setImageBitmap(lineGrey(bmp));
 //        switchBlackNWhiteColor(bmp)
 //        convertGreyImgByFloyd(bmp)
@@ -40,7 +49,7 @@ class MainActivity : AppCompatActivity() {
         // 图片变暗
         // 方法1
         val image3 = findViewById<View>(R.id.imageView3) as ImageView
-        val drawable = resources.getDrawable(R.drawable.mm)
+        val drawable = resources.getDrawable(R.drawable.baby)
         drawable.setColorFilter(Color.GRAY, PorterDuff.Mode.MULTIPLY)
         image3.setImageDrawable(drawable)
 
@@ -258,8 +267,8 @@ class MainActivity : AppCompatActivity() {
         bitmapPaint.colorFilter = ColorMatrixColorFilter(createGreyMatrix())
         c.drawBitmap(srcBitmap, 0f, 0f, bitmapPaint)
 
-        bitmapPaint.colorFilter = ColorMatrixColorFilter(createThresholdMatrix(110))
-        c.drawBitmap(result,0f,0f,bitmapPaint)
+//        bitmapPaint.colorFilter = ColorMatrixColorFilter(createThresholdMatrix(110))
+//        c.drawBitmap(result, 0f, 0f, bitmapPaint)
 
         bitmapPaint.colorFilter = null
 
@@ -267,6 +276,7 @@ class MainActivity : AppCompatActivity() {
 
         return result;
     }
+
     fun replaceColor(src: Bitmap?, fromColor: Int, targetColor: Int): Bitmap? {
         if (src == null) {
             return null
@@ -286,6 +296,114 @@ class MainActivity : AppCompatActivity() {
         //set pixels
         result.setPixels(pixels, 0, width, 0, 0, width, height)
 
+        return result
+    }
+
+    fun sauva(src: Bitmap?, windowSize: Int): Bitmap? {
+        if (src == null) {
+            return null
+        }
+        // Source image size
+
+        val whalf = windowSize shr 1
+        var k = 0.2f
+        val width = src.width
+        val height = src.height
+        val grayImagePixels = IntArray(width * height)
+        val biImagePixels = IntArray(width * height)
+        val biImage = IntArray(width * height)
+        val integralImg = IntArray(width * height)
+        val integralImgSqrt = IntArray(width * height)
+        // create result bitmap output
+        val result = Bitmap.createBitmap(width, height, src.config)
+        result.getPixels(biImagePixels, 0, width, 0, 0, width, height)
+
+        //get pixels
+        src.getPixels(grayImagePixels, 0, width, 0, 0, width, height)
+        //处理像素   二值化处理
+        var sum = 0
+        var sqrtsum = 0
+        var index: Int
+        for (i in 0 .. height-1) {
+            sum = 0
+            sqrtsum = 0
+            for (j in 0 .. width-1) {
+                index = i * width + j
+                sum = sum + grayImagePixels[index]
+                sqrtsum = sqrtsum + grayImagePixels[index] * grayImagePixels[index]
+                if (i == 0) {
+                    integralImg[index] = sum;
+                    integralImgSqrt[index] = sqrtsum;
+                } else {
+                    integralImgSqrt[index] = integralImgSqrt[(i - 1) * width + j] + sqrtsum;
+                    integralImg[index] = integralImg[(i - 1) * height + j] + sum;
+                }
+            }
+        }
+
+        var xmin: Int
+        var ymin: Int
+        var xmax: Int
+        var ymax: Int
+        var mean: Double
+        var std: Double
+        var threshold: Double
+        var diagsum: Double
+        var idiagsum: Double
+        var diff: Double
+        var sqdiagsum: Double
+        var sqidiagsum: Double
+        var sqdiff: Double
+        var area: Double
+
+        for (i in 0 .. width-1) {
+            for (j in 0 .. height-1) {
+                xmin = max(0, i - whalf);
+                ymin = max(0, j - whalf);
+                xmax = min(width - 1, i + whalf);
+                ymax = min(height - 1, j + whalf);
+
+                area = ((xmax - xmin + 1) * (ymax - ymin + 1)).toDouble();
+                if (area <= 0) {
+                    biImage[i * width + j] = 255;
+                    continue;
+                }
+
+                if (xmin == 0 && ymin == 0) {
+                    diff = integralImg[ymax * width + xmax].toDouble();
+                    sqdiff = integralImgSqrt[ymax * width + xmax].toDouble();
+                } else if (xmin > 0 && ymin == 0) {
+                    diff = (integralImg[ymax * width + xmax] - integralImg[ymax * width + xmin - 1]).toDouble();
+                    sqdiff = (integralImgSqrt[ymax * width + xmax] - integralImgSqrt[ymax * width + xmin - 1]).toDouble();
+                } else if (xmin == 0 && ymin > 0) {
+                    diff = (integralImg[ymax * width + xmax] - integralImg[(ymin - 1) * width + xmax]).toDouble();
+                    sqdiff = (integralImgSqrt[ymax * width + xmax] - integralImgSqrt[(ymin - 1) * width + xmax]).toDouble()
+                } else {
+                    diagsum = (integralImg[ymax * width + xmax] + integralImg[(ymin - 1) * width + xmin - 1]).toDouble();
+                    idiagsum = (integralImg[(ymin - 1) * width + xmax] + integralImg[ymax * width + xmin - 1]).toDouble();
+                    diff = diagsum - idiagsum;
+
+                    sqdiagsum = (integralImgSqrt[ymax * width + xmax] + integralImgSqrt[(ymin - 1) * width + xmin - 1]).toDouble();
+                    sqidiagsum = (integralImgSqrt[(ymin - 1) * width + xmax] + integralImgSqrt[ymax * width + xmin - 1]).toDouble();
+                    sqdiff = sqdiagsum - sqidiagsum;
+                }
+
+                mean = diff / area;
+                std = sqrt((sqdiff - diff * diff / area) / (area - 1));
+                threshold = mean * (1 + k * ((std / 128) - 1));
+                if (biImagePixels[j * width + i] < threshold)
+                    biImage[j * width + i] = 0;
+                else
+                    biImage[j * width + i] = 255;
+
+            }
+        }
+
+
+        // create result bitmap output
+//        val result = Bitmap.createBitmap(width, height, src.config)
+        //set pixels
+        result.setPixels(grayImagePixels, 0, width, 0, 0, width, height)
         return result
     }
 }

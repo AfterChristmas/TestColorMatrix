@@ -51,7 +51,7 @@ public class Main2Activity extends AppCompatActivity {
                 baseBitmap.getHeight(), baseBitmap.getConfig());
         canvas = new Canvas(afterBitmap);
         paint = new Paint();*/
-        Bitmap originImg = BitmapFactory.decodeResource(getResources(), R.drawable.test9);
+        Bitmap originImg = BitmapFactory.decodeResource(getResources(), R.drawable.baby);
         binarization(originImg);
      /*   Bitmap grayImg = Bitmap.createBitmap(originImg.getWidth(), originImg.getHeight(), Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(grayImg);
@@ -62,6 +62,9 @@ public class Main2Activity extends AppCompatActivity {
         paint.setColorFilter(colorMatrixFilter);
         canvas.drawBitmap(originImg,0,0,paint);
         iv_show.setImageBitmap(grayImg);*/
+        for (int i = 0; i < 10; i++) {
+            
+        }
 
     }
 
