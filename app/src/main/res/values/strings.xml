@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">TestColorMatrix</string>
+    <string name="recognitionFailed">Recognition failed. See logcat</string>
 </resources>

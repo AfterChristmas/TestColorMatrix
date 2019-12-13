@@ -2,16 +2,18 @@ package com.afterchristmas.testcolormatrix
 
 import android.graphics.*
 import android.os.Bundle
-import android.view.View
-import android.widget.ImageView
+import android.os.Environment
 import androidx.appcompat.app.AppCompatActivity
-import android.graphics.Bitmap
+import kotlinx.android.synthetic.main.activity_main.*
+import java.io.File
+import java.io.FileNotFoundException
+import java.io.FileOutputStream
+import java.io.IOException
 import java.lang.Math.*
 
 
 class MainActivity : AppCompatActivity() {
 
-    private var image2: ImageView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -19,19 +21,21 @@ class MainActivity : AppCompatActivity() {
 
         // 把彩色图片换成灰色
         // 方法1：
-        val image1 = findViewById<View>(R.id.imageView1) as ImageView
-        val matrix = ColorMatrix()
-        matrix.setSaturation(0f)
-        val filter = ColorMatrixColorFilter(matrix)
-        image1.colorFilter = filter
+//        val matrix = ColorMatrix()
+//        matrix.setSaturation(0f)
+//        val filter = ColorMatrixColorFilter(matrix)
+//        imageView1.colorFilter = filter
 
         // 方法2：
-        image2 = findViewById<View>(R.id.imageView2) as ImageView?
         val bmp = BitmapFactory.decodeResource(resources,
                 R.drawable.test9)
 //                image2!!.setImageBitmap(threshedBitmap(bmp));
 //        image2!!.setImageBitmap(convertToBlackWhite(bmp));
-                image2!!.setImageBitmap(sauva(threshedBitmap(bmp),30));
+//        lineGrey(bmp)
+//        convertGreyImgByFloyd(bmp)
+//        imageView2!!.setImageBitmap(sauva(threshedBitmap(bmp),0.3,31));
+        imageView2!!.setImageBitmap(threshedBitmap(bmp));
+//        imageView2!!.setImageBitmap(sauva(threshedBitmap(bmp),100));
 
        /* Thread{
             kotlin.run {
@@ -48,10 +52,9 @@ class MainActivity : AppCompatActivity() {
 
         // 图片变暗
         // 方法1
-        val image3 = findViewById<View>(R.id.imageView3) as ImageView
-        val drawable = resources.getDrawable(R.drawable.baby)
-        drawable.setColorFilter(Color.GRAY, PorterDuff.Mode.MULTIPLY)
-        image3.setImageDrawable(drawable)
+//        val drawable = resources.getDrawable(R.drawable.baby)
+//        drawable.setColorFilter(Color.GRAY, PorterDuff.Mode.MULTIPLY)
+//        imageView3.setImageDrawable(drawable)
 
         // 方法2：没布局文件里的image4，要显示的图片作为background,把变暗的图片或颜色设为src,就可以实现变暗的效果
         // ImageView image4 = (ImageView) findViewById(R.id.imageView4);
@@ -136,7 +139,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                runOnUiThread { image2!!.setImageBitmap(newBitmap) }
+                runOnUiThread { imageView2.setImageBitmap(newBitmap) }
             }
         }.start()
 
@@ -189,7 +192,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 val mBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
                 mBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
-                runOnUiThread { image2!!.setImageBitmap(mBitmap) }
+                runOnUiThread { imageView2.setImageBitmap(mBitmap) }
             }
         }.start()
         return null
@@ -231,11 +234,12 @@ class MainActivity : AppCompatActivity() {
                         }
                         // 新的ARGB
                         val newColor = alpha or (red shl 16) or (green shl 8) or blue
+                        System.err.println("grayImagePixels=="+newColor)
                         //设置新图像的RGB值
                         linegray!!.setPixel(i, j, newColor)
                     }
                 }
-                runOnUiThread { image2!!.setImageBitmap(linegray) }
+                runOnUiThread { imageView2!!.setImageBitmap(linegray) }
             }
         }.start()
     }
@@ -272,11 +276,35 @@ class MainActivity : AppCompatActivity() {
 
         bitmapPaint.colorFilter = null
 
-
+        saveImageToGallery(result)
 
         return result;
     }
+    fun saveImageToGallery(bmp: Bitmap) {
+        // 首先保存图片
+        val appDir = File(Environment.getExternalStorageDirectory().path + "/高考必备笔记1")
+        if (!appDir.exists()) {
+            appDir.mkdir()
+        }
+        val fileName = System.currentTimeMillis().toString() + "wy.jpg"
+        val file = File(appDir, fileName)
+        try {
+            val fos = FileOutputStream(file)
+            bmp.compress(Bitmap.CompressFormat.JPEG, 100, fos)
+            fos.flush()
+            fos.close()
+        } catch (e: FileNotFoundException) {
+            //            XyToast.makeText("文件未发现");
+            e.printStackTrace()
+        } catch (e: IOException) {
+            //            XyToast.makeText("保存出错了...");
+            e.printStackTrace()
+        } catch (e: Exception) {
+            //            XyToast.makeText("保存出错了...");
+            e.printStackTrace()
+        }
 
+    }
     fun replaceColor(src: Bitmap?, fromColor: Int, targetColor: Int): Bitmap? {
         if (src == null) {
             return null
@@ -299,38 +327,49 @@ class MainActivity : AppCompatActivity() {
         return result
     }
 
-    fun sauva(src: Bitmap?, windowSize: Int): Bitmap? {
+    fun sauva(src: Bitmap?, k: Double, windowSize: Int): Bitmap? {
         if (src == null) {
             return null
         }
         // Source image size
 
         val whalf = windowSize shr 1
-        var k = 0.2f
         val width = src.width
         val height = src.height
+
+        // create the integral image
+        val integralImg = LongArray(width * height)
+        val integralImgSqrt = LongArray(width * height)
+
         val grayImagePixels = IntArray(width * height)
+        var grayImageIndex = 0
+//        src.getPixels(grayImagePixels, 0, width, 0, 0, width, height)
+        for (i in 0 until width) {
+            for (j in 0 until height) {
+                //get the color of each bit
+               val  current_color = src.getPixel(i, j)
+                //achieve  three-primary color
+                val red = Color.red(current_color)
+                System.err.println("threshold red==" + red)
+                grayImagePixels[grayImageIndex] = red
+            }
+        }
+
         val biImagePixels = IntArray(width * height)
-        val biImage = IntArray(width * height)
-        val integralImg = IntArray(width * height)
-        val integralImgSqrt = IntArray(width * height)
-        // create result bitmap output
         val result = Bitmap.createBitmap(width, height, src.config)
         result.getPixels(biImagePixels, 0, width, 0, 0, width, height)
 
-        //get pixels
-        src.getPixels(grayImagePixels, 0, width, 0, 0, width, height)
         //处理像素   二值化处理
-        var sum = 0
-        var sqrtsum = 0
+        var sum: Long = 0
+        var sqrtsum: Long = 0
         var index: Int
-        for (i in 0 .. height-1) {
+        for (i in 0 .. (height-1)) {
             sum = 0
             sqrtsum = 0
-            for (j in 0 .. width-1) {
+            for (j in 0 .. (width-1)) {
                 index = i * width + j
-                sum = sum + grayImagePixels[index]
-                sqrtsum = sqrtsum + grayImagePixels[index] * grayImagePixels[index]
+                sum += grayImagePixels [index]
+                sqrtsum  +=  grayImagePixels[index] * grayImagePixels[index]
                 if (i == 0) {
                     integralImg[index] = sum;
                     integralImgSqrt[index] = sqrtsum;
@@ -356,8 +395,8 @@ class MainActivity : AppCompatActivity() {
         var sqdiff: Double
         var area: Double
 
-        for (i in 0 .. width-1) {
-            for (j in 0 .. height-1) {
+        for (i in 0 .. (width-1)) {
+            for (j in 0 .. (height-1)) {
                 xmin = max(0, i - whalf);
                 ymin = max(0, j - whalf);
                 xmax = min(width - 1, i + whalf);
@@ -365,7 +404,7 @@ class MainActivity : AppCompatActivity() {
 
                 area = ((xmax - xmin + 1) * (ymax - ymin + 1)).toDouble();
                 if (area <= 0) {
-                    biImage[i * width + j] = 255;
+                    biImagePixels[i * width + j] = 255;
                     continue;
                 }
 
@@ -391,10 +430,16 @@ class MainActivity : AppCompatActivity() {
                 mean = diff / area;
                 std = sqrt((sqdiff - diff * diff / area) / (area - 1));
                 threshold = mean * (1 + k * ((std / 128) - 1));
-                if (biImagePixels[j * width + i] < threshold)
-                    biImage[j * width + i] = 0;
+                System.err.println("threshold=="+threshold)
+                if (grayImagePixels[j * width + i] < threshold)
+                    biImagePixels[j * width + i] = 0;
                 else
-                    biImage[j * width + i] = 255;
+                    biImagePixels[j * width + i] = 255;
+
+            }
+        }
+        for (i in 0..(width - 1)) {
+            for (j in 0..(height - 1)) {
 
             }
         }
@@ -403,7 +448,7 @@ class MainActivity : AppCompatActivity() {
         // create result bitmap output
 //        val result = Bitmap.createBitmap(width, height, src.config)
         //set pixels
-        result.setPixels(grayImagePixels, 0, width, 0, 0, width, height)
+        result.setPixels(biImagePixels, 0, width, 0, 0, width, height)
         return result
     }
 }
